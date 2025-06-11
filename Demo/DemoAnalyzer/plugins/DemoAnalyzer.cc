@@ -1,0 +1,287 @@
+#include "Demo/DemoAnalyzer/interface/DemoAnalyzer.h"
+#include "fastjet/ClusterSequence.hh"
+#include "DataFormats/Math/interface/LorentzVector.h"
+#include "TLorentzVector.h"
+#include "Math/VectorUtil.h"
+#include <cmath>
+#include "DataFormats/Math/interface/deltaR.h"  
+inline float wrapTo2Pi(float phi) {
+  float twoPi = 2 * M_PI;
+  return std::fmod(std::fmod(phi, twoPi) + twoPi, twoPi);
+}
+
+DemoAnalyzer::DemoAnalyzer(const edm::ParameterSet& iConfig)
+{
+  usesResource("TFileService");
+
+  jetToken_ = consumes<std::vector<reco::GenJet>>(iConfig.getParameter<edm::InputTag>("jets"));
+  metToken_ = consumes<std::vector<reco::GenMET>>(iConfig.getParameter<edm::InputTag>("mets"));
+  photonToken_ = consumes<std::vector<reco::GenParticle>>(iConfig.getParameter<edm::InputTag>("photons"));
+  genInfoToken_ = consumes<GenEventInfoProduct>(edm::InputTag("generator"));
+}
+
+void DemoAnalyzer::beginJob()
+{
+  edm::Service<TFileService> fs;
+  tree_ = fs->make<TTree>("Events", "Events");
+
+  tree_->Branch("leadingPhotonPt", &leadingPhotonPt_, "leadingPhotonPt/F");
+  tree_->Branch("leadingPhotonEta", &leadingPhotonEta_, "leadingPhotonEta/F");
+  tree_->Branch("leadingPhotonPhi", &leadingPhotonPhi_, "leadingPhotonPhi/F");
+
+  tree_->Branch("leadingJetPt", &leadingJetPt_, "leadingJetPt/F");
+  tree_->Branch("leadingJetEta", &leadingJetEta_, "leadingJetEta/F");
+  tree_->Branch("leadingJetPhi", &leadingJetPhi_, "leadingJetPhi/F");
+
+  tree_->Branch("subleadingJetPt", &subleadingJetPt_, "subleadingJetPt/F");
+  tree_->Branch("subleadingJetEta", &subleadingJetEta_, "subleadingJetEta/F");
+  tree_->Branch("subleadingJetPhi", &subleadingJetPhi_, "subleadingJetPhi/F");
+  tree_->Branch("leadingJetRapidity", &leadingJetRapidity_, "leadingJetRapidity/F");
+  tree_->Branch("subleadingJetRapidity", &subleadingJetRapidity_, "subleadingJetRapidity/F");
+  tree_->Branch("leadingJetMass", &leadingJetMass_, "leadingJetMass/F");
+  tree_->Branch("subleadingJetMass", &subleadingJetMass_, "subleadingJetMass/F");
+  tree_->Branch("leadingJetEnergy", &leadingJetEnergy_, "leadingJetEnergy/F");
+  tree_->Branch("subleadingJetEnergy", &subleadingJetEnergy_, "subleadingJetEnergy/F");
+
+  tree_->Branch("met", &met_, "met/F");
+  tree_->Branch("met_phi", &met_phi_, "met_phi/F");
+  tree_->Branch("genWeight", &genWeight_, "genWeight/F");
+
+  tree_->Branch("mjj", &mjj_, "mjj/F");
+  tree_->Branch("deltaEta_jj", &deltaEta_jj_, "deltaEta_jj/F");
+  tree_->Branch("deltaPhi_jj", &deltaPhi_jj_, "deltaPhi_jj/F");
+  tree_->Branch("deltaR_jj", &deltaR_jj_, "deltaR_jj/F");
+  tree_->Branch("deltaTheta_jj", &deltaTheta_jj_, "deltaTheta_jj/F");
+
+  tree_->Branch("deltaEta_photon_jet1", &deltaEta_photon_jet1_, "deltaEta_photon_jet1/F");
+  tree_->Branch("deltaPhi_photon_jet1", &deltaPhi_photon_jet1_, "deltaPhi_photon_jet1/F");
+
+  tree_->Branch("deltaEta_photon_jet2", &deltaEta_photon_jet2_, "deltaEta_photon_jet2/F");
+  tree_->Branch("deltaPhi_photon_jet2", &deltaPhi_photon_jet2_, "deltaPhi_photon_jet2/F");
+
+  tree_->Branch("deltaPhi_photon_met", &deltaPhi_photon_met_, "deltaPhi_photon_met/F");
+  tree_->Branch("deltaPhi_met_gamma", &deltaPhi_met_gamma_, "deltaPhi_met_gamma/F");
+  tree_->Branch("deltaPhi_jet1_met", &deltaPhi_jet1_met_, "deltaPhi_jet1_met/F");
+  tree_->Branch("deltaPhi_jet2_met", &deltaPhi_jet2_met_, "deltaPhi_jet2_met/F");
+
+  tree_->Branch("etaProduct_jj", &etaProduct_jj_, "etaProduct_jj/F");
+  tree_->Branch("leadingJetP", &leadingJetP_, "leadingJetP/F");
+  tree_->Branch("subleadingJetP", &subleadingJetP_, "subleadingJetP/F");
+
+  tree_->Branch("photonfromjetPt", &photonfromjetPt_, "photonfromjetPt/F");
+  tree_->Branch("fulljetPt", &fulljetPt_, "fulljetPt/F");
+  tree_->Branch("selectedjetPt", &selectedjetPt_, "selectedjetPt/F");
+
+  tree_->Branch("deltaR_photon_jet1_", &deltaR_photon_jet1_, "deltaR_photon_jet1/F");
+  tree_->Branch("deltaR_photon_jet2_", &deltaR_photon_jet2_, "deltaR_photon_jet2/F");
+
+}
+// Function to get dR between 4 vectors                                                                                                                                                 
+double dR_4vec(ROOT::Math::PtEtaPhiEVector a1, ROOT::Math::PtEtaPhiEVector a2){
+        return deltaR(a1.eta(), a1.phi(), a2.eta(), a2.phi());
+}
+
+void DemoAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&)
+{
+
+  leadingPhotonPt_ = 0;
+  leadingPhotonEta_ = 0;
+  leadingPhotonPhi_ = 0;
+  leadingJetPt_ = 0;
+  leadingJetEta_ = 0;
+  leadingJetPhi_ = 0;
+  subleadingJetPt_ = 0;
+  subleadingJetEta_ = 0;
+  subleadingJetPhi_ = 0;
+  leadingJetP_ = 0;
+  subleadingJetP_ = 0;
+  leadingJetRapidity_ = 0;
+  subleadingJetRapidity_ = 0;
+  leadingJetMass_ = 0;
+  subleadingJetMass_ = 0;
+  leadingJetEnergy_ = 0;
+  subleadingJetEnergy_ = 0;
+  photonfromjetPt_=0;
+  fulljetPt_=0;
+  selectedjetPt_=0;
+
+  //std::cout<<"Hello"<<std::endl;
+  edm::Handle<std::vector<reco::GenJet>> jets;
+  iEvent.getByToken(jetToken_, jets);
+
+  //std::cout<<"Size of Jets "<<jets->size()<<std::endl;
+  for(unsigned int g = 0; g < jets->size(); ++g){
+    const reco::GenJet* gj = &jets->at(g);
+    fulljetPt_=gj->pt();
+    //std::cout<<"full jet Pt   "<<fulljetPt_<<std::endl;
+    int numJetPhotons=0;
+    const auto& gjconstituents = gj->getJetConstituents();
+    //std::cout<<"Size of gjconstituents "<<gj->size()<<std::endl:
+    
+    if(!gjconstituents.empty()){
+      std::vector<fastjet::PseudoJet> particles;
+      assert(particles.empty());
+      for(const auto& gjc : gjconstituents){
+	if(gjc.isNonnull()){
+	  if(fabs(gjc->pdgId())!=22){                                                     
+	    particles.push_back(fastjet::PseudoJet(gjc->px(), gjc->py(), gjc->pz(), gjc->energy()));
+	    
+	  }
+	  else{
+	    numJetPhotons=numJetPhotons+1;
+	    photonfromjetPt_=gjc->pt();
+	    //std::cout<<"Photon from jet pt   "<<photonfromjetPt_<<std::endl;
+	  }
+	  
+	  	  
+	}
+      }
+
+      if(particles.size()>0){
+	fastjet::JetDefinition jet_def(fastjet::antikt_algorithm, 0.4);
+	fastjet::ClusterSequence clust_seq(particles, jet_def);
+	std::vector<fastjet::PseudoJet> jets = fastjet::sorted_by_pt(clust_seq.inclusive_jets());
+
+	if(jets.size()==1){
+	  // std::cout<<"selected jet pt   "<<jets[0].pt()<<std::endl;
+	  //std::cout<<"Number of photons in jets "<<numJetPhotons<<std::endl;
+	  //std::cout<<"_____________________________________________________________________"<<std::endl;
+
+	}
+	
+	if(jets.size()>1){
+	  // std::cout<<"==============================Number of Jets formed from one jet: "<<jets.size()<<std::endl;
+	  ROOT::Math::PtEtaPhiEVector lead_jet(jets[0].pt(), jets[0].eta(), jets[0].phi(), jets[0].E());
+	  ROOT::Math::PtEtaPhiEVector sublead_jet(jets[1].pt(), jets[1].eta(), jets[1].phi(), jets[1].E());
+	  
+	  leadingJetPt_ = lead_jet.pt();
+	  leadingJetEta_ = lead_jet.eta();
+	  leadingJetPhi_ = lead_jet.phi();
+	  subleadingJetPt_ = sublead_jet.pt();
+	  subleadingJetEta_ = sublead_jet.eta();
+	  subleadingJetPhi_ = sublead_jet.phi();
+	  leadingJetP_ = lead_jet.P();
+	  leadingJetRapidity_ = lead_jet.Rapidity();
+	  leadingJetMass_ = lead_jet.M();
+	  leadingJetEnergy_ = lead_jet.E();
+	  subleadingJetP_ = sublead_jet.P();
+	  subleadingJetRapidity_ = sublead_jet.Rapidity();
+	  subleadingJetMass_ = sublead_jet.M();
+	  subleadingJetEnergy_ = sublead_jet.E();
+	  
+
+	}
+	    
+      }
+      
+
+      }
+    }
+
+
+  edm::Handle<std::vector<reco::GenMET>> mets;
+  iEvent.getByToken(metToken_, mets);
+
+  edm::Handle<std::vector<reco::GenParticle>> photons;
+  iEvent.getByToken(photonToken_, photons);
+
+  edm::Handle<GenEventInfoProduct> genInfo;
+  iEvent.getByToken(genInfoToken_, genInfo);
+
+  met_ = 0;
+  met_phi_ = 0;
+  genWeight_ = 1.0;
+
+  mjj_ = 0;
+  deltaEta_jj_ = 0;
+  deltaPhi_jj_ = 0;
+  deltaR_jj_ = 0;
+  deltaTheta_jj_ = 0;
+  etaProduct_jj_ = 0;
+  deltaR_photon_jet1_=0;
+
+  deltaEta_photon_jet1_ = 0;
+  deltaPhi_photon_jet1_ = 0;
+  deltaEta_photon_jet2_ = 0;
+  deltaPhi_photon_jet2_ = 0;
+  deltaPhi_photon_met_ = 0;
+  deltaPhi_met_gamma_ = 0;
+  deltaPhi_jet1_met_ = 0;
+  deltaPhi_jet2_met_ = 0;
+  deltaR_photon_jet1_=0;
+  deltaR_photon_jet2_=0;
+  ROOT::Math::PtEtaPhiEVector photonVec;
+  if (genInfo.isValid()) {
+    genWeight_ = genInfo->weight();
+  }
+  if (photons.isValid()) {
+    for (const auto& p : *photons) {
+      photonVec.SetCoordinates(p.pt(), p.eta(), p.phi(), p.energy());
+      if (p.pdgId() == 22 && p.status() == 1) {
+        if (p.pt() > leadingPhotonPt_) {
+          leadingPhotonPt_ = p.pt();
+          leadingPhotonEta_ = p.eta();
+	  leadingPhotonPhi_ = wrapTo2Pi(p.phi());
+        }
+      }
+    }
+  }
+
+  if (mets.isValid() && !mets->empty()) {
+    met_ = mets->at(0).pt();
+    met_phi_ = wrapTo2Pi(mets->at(0).phi());
+  }
+
+  if (leadingJetPt_ > 0 && subleadingJetPt_ > 0) {
+    ROOT::Math::PtEtaPhiEVector jet1, jet2;
+    jet1.SetCoordinates(leadingJetPt_, leadingJetEta_, leadingJetPhi_, leadingJetEnergy_);
+    jet2.SetCoordinates(subleadingJetPt_, subleadingJetEta_, subleadingJetPhi_, subleadingJetEnergy_);
+
+    mjj_ = (jet1 + jet2).M();
+    deltaEta_jj_ = jet1.Eta() - jet2.Eta();
+    deltaPhi_jj_ = std::abs(TVector2::Phi_mpi_pi(jet1.Phi() - jet2.Phi()));
+    //   deltaR_jj_ = jet1.DeltaR(jet2);
+    deltaR_jj_ = dR_4vec(jet1,jet2);
+    deltaR_photon_jet1_=dR_4vec(jet1,photonVec);
+    deltaR_photon_jet2_=dR_4vec(jet2,photonVec);
+    deltaTheta_jj_ = jet1.Theta() - jet2.Theta();
+    etaProduct_jj_ = leadingJetEta_ * subleadingJetEta_;
+
+  }
+
+  if (leadingPhotonPt_ > 0 && leadingJetPt_ > 0) {
+    deltaEta_photon_jet1_ = leadingPhotonEta_ - leadingJetEta_;
+    deltaPhi_photon_jet1_ = std::abs(TVector2::Phi_mpi_pi(leadingPhotonPhi_ - leadingJetPhi_));
+  }
+
+  if (leadingPhotonPt_ > 0 && subleadingJetPt_ > 0) {
+    deltaEta_photon_jet2_ = leadingPhotonEta_ - subleadingJetEta_;
+    deltaPhi_photon_jet2_ = std::abs(TVector2::Phi_mpi_pi(leadingPhotonPhi_ - subleadingJetPhi_));
+  }
+
+  if (leadingPhotonPt_ > 0 && met_ > 0) {
+    deltaPhi_photon_met_ = std::abs(TVector2::Phi_mpi_pi(leadingPhotonPhi_ - met_phi_));
+    deltaPhi_met_gamma_ = std::abs(TVector2::Phi_mpi_pi(met_phi_ - leadingPhotonPhi_));
+  }
+
+  if (leadingJetPt_ > 0 && met_ > 0) {
+    deltaPhi_jet1_met_ = std::abs(TVector2::Phi_mpi_pi(leadingJetPhi_ - met_phi_));
+  }
+
+  if (subleadingJetPt_ > 0 && met_ > 0) {
+    deltaPhi_jet2_met_ = std::abs(TVector2::Phi_mpi_pi(subleadingJetPhi_ - met_phi_));
+  }
+
+  tree_->Fill();
+}
+
+void DemoAnalyzer::fillDescriptions(edm::ConfigurationDescriptions& descriptions)
+{
+  edm::ParameterSetDescription desc;
+  desc.add<edm::InputTag>("jets", edm::InputTag("genJets"));
+  desc.add<edm::InputTag>("mets", edm::InputTag("genMetTrue"));
+  desc.add<edm::InputTag>("photons", edm::InputTag("genParticles"));
+  descriptions.add("demoAnalyzer", desc);
+}
+
+DEFINE_FWK_MODULE(DemoAnalyzer);

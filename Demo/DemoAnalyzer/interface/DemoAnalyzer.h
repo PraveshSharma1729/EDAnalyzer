@@ -1,0 +1,84 @@
+#ifndef Demo_DemoAnalyzer_DemoAnalyzer_h
+#define Demo_DemoAnalyzer_DemoAnalyzer_h
+
+#include "FWCore/Framework/interface/one/EDAnalyzer.h"
+#include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/EventSetup.h"
+#include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+
+#include "DataFormats/JetReco/interface/GenJet.h"
+#include "DataFormats/METReco/interface/GenMET.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
+#include "TLorentzVector.h"
+#include "TVector2.h"
+
+#include "TTree.h"
+
+class DemoAnalyzer : public edm::one::EDAnalyzer<edm::one::SharedResources> {
+public:
+  explicit DemoAnalyzer(const edm::ParameterSet&);
+  ~DemoAnalyzer() override {}
+
+  static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
+
+private:
+  void analyze(const edm::Event&, const edm::EventSetup&) override;
+  void beginJob() override;
+
+  edm::EDGetTokenT<std::vector<reco::GenJet>> jetToken_;
+  edm::EDGetTokenT<std::vector<reco::GenMET>> metToken_;
+  edm::EDGetTokenT<std::vector<reco::GenParticle>> photonToken_;
+  edm::EDGetTokenT<GenEventInfoProduct> genInfoToken_;
+  TTree* tree_;
+  float leadingPhotonPt_;
+  float leadingPhotonEta_;
+  float leadingPhotonPhi_;
+  float leadingJetPt_;
+  float leadingJetEta_;
+  float leadingJetPhi_;
+  float met_;
+  float genWeight_;
+  float subleadingJetPt_;
+  float subleadingJetEta_;
+  float subleadingJetPhi_;
+  float mjj_;
+  float deltaEta_jj_;
+  float deltaPhi_jj_;
+  float leadingJetRapidity_;
+  float subleadingJetRapidity_;
+  float leadingJetMass_;
+  float subleadingJetMass_;
+  float leadingJetEnergy_;
+  float subleadingJetEnergy_;
+
+  float deltaEta_photon_jet1_;
+  float deltaPhi_photon_jet1_;
+
+  float deltaEta_photon_jet2_;
+  float deltaPhi_photon_jet2_;
+
+  float deltaPhi_photon_met_;
+  float deltaPhi_jet1_met_;
+  float deltaPhi_jet2_met_;
+
+
+  float met_phi_;
+  float deltaPhi_met_gamma_;
+  float deltaR_jj_;
+  float deltaTheta_jj_;
+  float etaProduct_jj_;
+
+  float leadingJetP_;
+  float subleadingJetP_;
+  float photonfromjetPt_;
+  float fulljetPt_;
+  float selectedjetPt_;
+  float deltaR_photon_jet1_;
+  float deltaR_photon_jet2_;
+};
+
+#endif
