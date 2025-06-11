@@ -1,1 +1,1 @@
-# EDAnalzser
+# EDAnalyzser
